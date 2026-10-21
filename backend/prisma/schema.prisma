@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum LicenseStatus {
+  active
+  inactive
+  suspended
+  revoked
+}
+
+model Admin {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String         @unique
+  displayName  String         @map("display_name")
+  passwordHash String         @map("password_hash")
+  isActive     Boolean        @default(true) @map("is_active")
+  lastLoginAt  DateTime?      @map("last_login_at")
+  sessions     AdminSession[]
+  auditEvents  AuditEvent[]
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  @@map("admins")
+}
+
+model AdminSession {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId       String   @map("admin_id") @db.Uuid
+  tokenHash     String   @unique @map("token_hash")
+  csrfTokenHash String   @map("csrf_token_hash")
+  expiresAt     DateTime @map("expires_at")
+  admin         Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([adminId])
+  @@index([expiresAt])
+  @@map("admin_sessions")
+}
+
+model ApiClient {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  tokenPrefix String       @unique @map("token_prefix")
+  tokenHash   String       @unique @map("token_hash")
+  isActive    Boolean      @default(true) @map("is_active")
+  lastUsedAt  DateTime?    @map("last_used_at")
+  auditEvents AuditEvent[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("api_clients")
+}
+
+model License {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  licenseId         String        @unique @map("license_id")
+  productId         String        @map("product_id")
+  tenantId          String?       @map("tenant_id")
+  companyName       String        @map("company_name")
+  tenantSlug        String?       @map("tenant_slug")
+  plan              String
+  features          String[]      @default([])
+  maxUsers          Int?          @map("max_users")
+  validUntil        DateTime?     @map("valid_until")
+  status            LicenseStatus @default(active)
+  activationKeyHash String        @unique @map("activation_key_hash")
+  activationKeyHint String        @map("activation_key_hint")
+  lastValidatedAt   DateTime?     @map("last_validated_at")
+  auditEvents       AuditEvent[]
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@unique([productId, tenantId])
+  @@index([companyName])
+  @@index([status])
+  @@index([validUntil])
+  @@map("licenses")
+}
+
+model AuditEvent {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action      String
+  adminId     String?    @map("admin_id") @db.Uuid
+  apiClientId String?    @map("api_client_id") @db.Uuid
+  licenseId   String?    @map("license_id") @db.Uuid
+  details     Json?
+  admin       Admin?     @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  apiClient   ApiClient? @relation(fields: [apiClientId], references: [id], onDelete: SetNull)
+  license     License?   @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([licenseId])
+  @@map("audit_events")
+}

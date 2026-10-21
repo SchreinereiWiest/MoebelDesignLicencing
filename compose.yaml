@@ -1,0 +1,94 @@
+services:
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - "${HTTP_PORT:-8088}:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - "traefik.http.routers.licensing-web.rule=Host(`${LICENSING_HOST:-licensing.localhost}`)"
+      - traefik.http.routers.licensing-web.entrypoints=web
+      - traefik.http.routers.licensing-web.priority=10
+      - traefik.http.services.licensing-web.loadbalancer.server.port=80
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - default
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5100
+      DATABASE_URL: postgresql://${POSTGRES_USER:-licensing}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss gesetzt sein}@postgres:5432/${POSTGRES_DB:-moebel_design_licensing}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL muss gesetzt sein}
+      ADMIN_NAME: ${ADMIN_NAME:-Lizenz-Administrator}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD muss gesetzt sein}
+      CARPENTERS_API_KEY: ${CARPENTERS_API_KEY:?CARPENTERS_API_KEY muss gesetzt sein}
+      CARPENTERS_CLIENT_NAME: ${CARPENTERS_CLIENT_NAME:-CarpentersProduction}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://licensing.localhost:8088}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=moebel-design-licensing-default
+      - "traefik.http.routers.licensing-api.rule=Host(`${LICENSING_HOST:-licensing.localhost}`) && PathPrefix(`/api`)"
+      - traefik.http.routers.licensing-api.entrypoints=web
+      - traefik.http.routers.licensing-api.priority=100
+      - traefik.http.services.licensing-api.loadbalancer.server.port=5100
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default: {}
+      MoebelDesign:
+        aliases:
+          - licensing-api
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-moebel_design_licensing}
+      POSTGRES_USER: ${POSTGRES_USER:-licensing}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD muss gesetzt sein}
+    volumes:
+      - licensing-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-licensing} -d ${POSTGRES_DB:-moebel_design_licensing}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    networks:
+      - default
+
+volumes:
+  licensing-postgres:
+
+networks:
+  default:
+    name: moebel-design-licensing-default
+  MoebelDesign:
+    name: MoebelDesign
+    external: true
