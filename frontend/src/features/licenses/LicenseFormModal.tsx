@@ -4,22 +4,39 @@ import Button from '../../components/Button'
 import type { License, LicenseInput } from '../../types'
 import { licenseToInput } from './license-form'
 
-const featureOptions = [
-  ['crm', 'CRM'],
-  ['cabinet', 'Schrankplanung'],
-  ['nesting', 'Nesting'],
-  ['management', 'Management'],
-  ['storage', 'Lager'],
-  ['time', 'Zeiterfassung'],
-  ['purchasing', 'Einkauf'],
-] as const
+type ProductId = LicenseInput['products'][number]
+
+const productFeatures: Record<ProductId, ReadonlyArray<readonly [string, string]>> = {
+  'carpenters-production': [
+    ['crm', 'CRM'],
+    ['work-preparation', 'Arbeitsvorbereitung'],
+    ['calculation', 'Kalkulation'],
+    ['shop', 'Shop'],
+    ['business-management', 'Betriebsmanagement'],
+  ],
+  'moebel-design-suite': [
+    ['public-content', 'Öffentliche Inhalte'],
+    ['moodboards', 'Moodboards'],
+  ],
+}
+
+const presets: Record<string, Pick<LicenseInput, 'products' | 'features'>> = {
+  starter: { products: ['carpenters-production'], features: ['crm', 'work-preparation', 'shop'] },
+  professional: { products: ['carpenters-production'], features: ['crm', 'work-preparation', 'calculation', 'shop', 'business-management'] },
+  enterprise: {
+    products: ['carpenters-production', 'moebel-design-suite'],
+    features: [...productFeatures['carpenters-production'], ...productFeatures['moebel-design-suite']].map(([value]) => value),
+  },
+  design: { products: ['moebel-design-suite'], features: productFeatures['moebel-design-suite'].map(([value]) => value) },
+}
 
 const emptyForm: LicenseInput = {
   companyName: '',
   tenantId: '',
   tenantSlug: '',
   plan: 'professional',
-  features: featureOptions.map(([value]) => value),
+  products: presets.professional.products,
+  features: presets.professional.features,
   maxUsers: '10',
   validUntil: '',
   status: 'active',
@@ -42,15 +59,46 @@ export default function LicenseFormModal({ license, saving, onClose, onSave }: P
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  const toggleFeature = (feature: string) => {
-    set('features', form.features.includes(feature)
-      ? form.features.filter((item) => item !== feature)
-      : [...form.features, feature])
+  const selectPlan = (plan: string) => {
+    const preset = presets[plan]
+    setForm((current) => ({
+      ...current,
+      plan,
+      ...(preset ? { products: [...preset.products], features: [...preset.features] } : {}),
+    }))
+  }
+
+  const toggleProduct = (product: ProductId) => {
+    setForm((current) => {
+      const enabled = current.products.includes(product)
+      const productModuleIds = new Set(productFeatures[product].map(([value]) => value))
+      return {
+        ...current,
+        plan: 'custom',
+        products: enabled ? current.products.filter((item) => item !== product) : [...current.products, product],
+        features: enabled ? current.features.filter((feature) => !productModuleIds.has(feature)) : current.features,
+      }
+    })
+  }
+
+  const toggleFeature = (product: ProductId, feature: string) => {
+    setForm((current) => ({
+      ...current,
+      plan: 'custom',
+      products: current.products.includes(product) ? current.products : [...current.products, product],
+      features: current.features.includes(feature)
+        ? current.features.filter((item) => item !== feature)
+        : [...current.features, feature],
+    }))
   }
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError('')
+    if (!form.products.length) {
+      setError('Mindestens ein Produkt muss freigeschaltet sein.')
+      return
+    }
     try {
       await onSave(form)
     } catch (requestError) {
@@ -69,22 +117,23 @@ export default function LicenseFormModal({ license, saving, onClose, onSave }: P
           <button type="button" onClick={onClose} aria-label="Schließen" className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><X /></button>
         </div>
 
-        <div className="space-y-7 px-6 py-7 sm:px-8">
+        <div className="space-y-8 px-6 py-7 sm:px-8">
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Firmenname" className="sm:col-span-2">
               <input value={form.companyName} onChange={(event) => set('companyName', event.target.value)} required placeholder="Möbelschreinerei Beispiel" className={inputClass} />
             </Field>
             <Field label="Tenant-ID" hint="Optional – wird sonst bei Aktivierung gebunden">
-              <input value={form.tenantId} onChange={(event) => set('tenantId', event.target.value)} placeholder="UUID aus CarpentersProduction" className={inputClass} />
+              <input value={form.tenantId} onChange={(event) => set('tenantId', event.target.value)} placeholder="UUID des Mandanten" className={inputClass} />
             </Field>
             <Field label="Tenant-Slug" hint="Optional">
               <input value={form.tenantSlug} onChange={(event) => set('tenantSlug', event.target.value)} placeholder="beispiel" className={inputClass} />
             </Field>
-            <Field label="Lizenzmodell">
-              <select value={form.plan} onChange={(event) => set('plan', event.target.value)} className={inputClass}>
+            <Field label="Lizenzmodell" hint="Preset – danach frei anpassbar">
+              <select value={form.plan} onChange={(event) => selectPlan(event.target.value)} className={inputClass}>
                 <option value="starter">Starter</option>
                 <option value="professional">Professional</option>
                 <option value="enterprise">Enterprise</option>
+                <option value="design">Design</option>
                 <option value="custom">Individuell</option>
               </select>
             </Field>
@@ -104,21 +153,25 @@ export default function LicenseFormModal({ license, saving, onClose, onSave }: P
             </Field>
           </div>
 
-          <fieldset>
-            <legend className="text-sm font-semibold text-slate-700">Freigeschaltete Module</legend>
-            <p className="mt-1 text-xs text-slate-400">Module werden bei jeder Anfrage serverseitig geprüft.</p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {featureOptions.map(([value, label]) => {
-                const selected = form.features.includes(value)
-                return (
-                  <button key={value} type="button" onClick={() => toggleFeature(value)} className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition ${selected ? 'border-copper-400 bg-copper-400/10 text-ink-950' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
-                    <span className={`grid size-5 place-items-center rounded-md ${selected ? 'bg-copper-400 text-ink-950' : 'bg-slate-100'}`}>{selected && <Check size={14} strokeWidth={3} />}</span>
-                    {label}
-                  </button>
-                )
-              })}
-            </div>
-          </fieldset>
+          <ProductSection
+            title="Carpenters Production"
+            description="Kaufmännische und produktionsnahe Unternehmensfunktionen."
+            product="carpenters-production"
+            enabled={form.products.includes('carpenters-production')}
+            selectedFeatures={form.features}
+            onToggleProduct={toggleProduct}
+            onToggleFeature={toggleFeature}
+          />
+
+          <ProductSection
+            title="Wiest Design Suite"
+            description="Bildbasierte Gestaltung, externe Inhalte und persönliche Moodboards."
+            product="moebel-design-suite"
+            enabled={form.products.includes('moebel-design-suite')}
+            selectedFeatures={form.features}
+            onToggleProduct={toggleProduct}
+            onToggleFeature={toggleFeature}
+          />
 
           {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
         </div>
@@ -129,6 +182,42 @@ export default function LicenseFormModal({ license, saving, onClose, onSave }: P
         </div>
       </form>
     </div>
+  )
+}
+
+function ProductSection({ title, description, product, enabled, selectedFeatures, onToggleProduct, onToggleFeature }: {
+  title: string
+  description: string
+  product: ProductId
+  enabled: boolean
+  selectedFeatures: string[]
+  onToggleProduct: (product: ProductId) => void
+  onToggleFeature: (product: ProductId, feature: string) => void
+}) {
+  return (
+    <section className="border-t border-slate-200 pt-7">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+        <div>
+          <h3 className="text-lg font-semibold text-ink-950">{title}</h3>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        <button type="button" aria-pressed={enabled} onClick={() => onToggleProduct(product)} className={`inline-flex items-center gap-2 self-start rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${enabled ? 'border-copper-400 bg-copper-400/10 text-ink-950' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}>
+          <span className={`grid size-5 place-items-center rounded-md ${enabled ? 'bg-copper-400 text-ink-950' : 'bg-slate-100'}`}>{enabled && <Check size={14} strokeWidth={3} />}</span>
+          {enabled ? 'Produkt aktiv' : 'Produkt freischalten'}
+        </button>
+      </div>
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {productFeatures[product].map(([value, label]) => {
+          const selected = enabled && selectedFeatures.includes(value)
+          return (
+            <button key={value} type="button" disabled={!enabled} onClick={() => onToggleFeature(product, value)} className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left text-sm transition disabled:cursor-not-allowed disabled:opacity-45 ${selected ? 'border-copper-400 bg-copper-400/10 text-ink-950' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+              <span className={`grid size-5 place-items-center rounded-md ${selected ? 'bg-copper-400 text-ink-950' : 'bg-slate-100'}`}>{selected && <Check size={14} strokeWidth={3} />}</span>
+              {label}
+            </button>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 

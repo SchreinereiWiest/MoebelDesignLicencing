@@ -16,5 +16,5 @@ export const remove = async (req, res) => {
   res.status(204).end();
 };
 export const rotateKey = async (req, res) => res.json(await rotateActivationKey(req.params.id, req.admin.id));
-export const validate = async (req, res) => res.json({ license: await validateExternalLicense(req.body, req.apiClient.id) });
-export const activate = async (req, res) => res.json({ license: await activateExternalLicense(req.body, req.apiClient.id) });
+export const validate = async (req, res) => res.json({ license: await validateExternalLicense(req.body, req.apiClient) });
+export const activate = async (req, res) => res.json({ license: await activateExternalLicense(req.body, req.apiClient) });

@@ -1,6 +1,9 @@
 import { HttpError } from "./http.js";
 
-export const LICENSE_FEATURES = ["crm", "cabinet", "nesting", "management", "storage", "time", "purchasing"];
+export const LICENSE_FEATURES = [
+  "crm", "work-preparation", "calculation", "shop", "business-management",
+  "public-content", "moodboards"
+];
 export const LICENSE_STATUSES = ["active", "inactive", "suspended", "revoked"];
 
 export const text = (value, field, { required = true, max = 200 } = {}) => {

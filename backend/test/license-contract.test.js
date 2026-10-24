@@ -7,12 +7,12 @@ import { HttpError } from "../src/shared/http.js";
 const record = {
   id: "internal-id",
   licenseId: "lic_test",
-  productId: "carpenters-production",
+  products: ["carpenters-production", "moebel-design-suite"],
   tenantId: "tenant-id",
   companyName: "Beispiel GmbH",
   tenantSlug: "beispiel",
   plan: "professional",
-  features: ["crm", "cabinet"],
+  features: ["crm", "work-preparation"],
   maxUsers: 10,
   validUntil: null,
   status: "active",
@@ -26,6 +26,7 @@ test("öffentliche Lizenzen enthalten keine Aktivierungsschlüssel-Hashes", () =
   const result = publicLicense({ ...record, activationKeyHash: "secret-hash" });
   assert.equal(Object.hasOwn(result, "activationKeyHash"), false);
   assert.equal(result.activationKeyHint, "12345678");
+  assert.deepEqual(result.products, ["carpenters-production", "moebel-design-suite"]);
 });
 
 test("abgelaufene aktive Lizenzen werden als expired ausgeliefert", () => {
@@ -34,7 +35,8 @@ test("abgelaufene aktive Lizenzen werden als expired ausgeliefert", () => {
 });
 
 test("Lizenzfelder werden streng validiert", () => {
-  assert.deepEqual(features(["crm", "crm", "time"]), ["crm", "time"]);
+  assert.deepEqual(features(["crm", "crm", "work-preparation"]), ["crm", "work-preparation"]);
+  assert.deepEqual(features(["public-content", "moodboards"]), ["public-content", "moodboards"]);
   assert.equal(optionalInteger("12", "Benutzerlimit"), 12);
   assert.equal(optionalDate("", "Ablaufdatum"), null);
   assert.equal(status("active"), "active");

@@ -10,7 +10,31 @@ import {
   text
 } from "../../shared/validation.js";
 
-const PRODUCT_ID = "carpenters-production";
+export const PRODUCT_IDS = ["carpenters-production", "moebel-design-suite"];
+export const PRODUCT_FEATURES = {
+  "carpenters-production": [
+    "crm",
+    "work-preparation",
+    "calculation",
+    "shop",
+    "business-management"
+  ],
+  "moebel-design-suite": ["public-content", "moodboards"]
+};
+
+const parseProducts = value => {
+  if (!Array.isArray(value) || value.length === 0 || value.some(product => !PRODUCT_IDS.includes(product))) {
+    throw new HttpError(400, "VALIDATION_ERROR", "Mindestens ein gültiges Produkt muss freigeschaltet sein");
+  }
+  return [...new Set(value)];
+};
+
+const assertProductFeatures = (products, selectedFeatures) => {
+  const allowed = new Set(products.flatMap(product => PRODUCT_FEATURES[product]));
+  if (selectedFeatures.some(feature => !allowed.has(feature))) {
+    throw new HttpError(400, "VALIDATION_ERROR", "Module dürfen nur für freigeschaltete Produkte gewählt werden");
+  }
+};
 
 const effectiveStatus = (license) =>
   license.status === "active" &&
@@ -22,7 +46,7 @@ const effectiveStatus = (license) =>
 export const publicLicense = (license) => ({
   id: license.id,
   licenseId: license.licenseId,
-  productId: license.productId,
+  products: license.products,
   tenantId: license.tenantId,
   companyName: license.companyName,
   tenantSlug: license.tenantSlug,
@@ -43,6 +67,7 @@ const licenseData = (body, { partial = false } = {}) => {
     if (!partial || body[field] !== undefined)
       data[field] = parser(body[field]);
   };
+  assign("products", parseProducts);
   assign("companyName", (value) => text(value, "Firmenname"));
   assign("tenantId", (value) =>
     text(value, "Tenant-ID", { required: false, max: 100 })
@@ -72,11 +97,12 @@ const translateUniqueError = (error) => {
 export async function createLicense(body, adminId) {
   const activationKey = `MDL_${randomToken(30)}`;
   try {
+    const data = licenseData(body);
+    assertProductFeatures(data.products, data.features);
     const license = await prisma.license.create({
       data: {
-        ...licenseData(body),
+        ...data,
         licenseId: `lic_${randomToken(12)}`,
-        productId: PRODUCT_ID,
         activationKeyHash: hashToken(activationKey),
         activationKeyHint: activationKey.slice(-8),
         auditEvents: { create: { action: "license.created", adminId } }
@@ -90,10 +116,15 @@ export async function createLicense(body, adminId) {
 
 export async function updateLicense(id, body, adminId) {
   try {
+    const existing = await prisma.license.findUnique({ where: { id } });
+    if (!existing)
+      throw new HttpError(404, "LICENSE_NOT_FOUND", "Lizenz nicht gefunden");
+    const data = licenseData(body, { partial: true });
+    assertProductFeatures(data.products ?? existing.products, data.features ?? existing.features);
     const license = await prisma.license.update({
       where: { id },
       data: {
-        ...licenseData(body, { partial: true }),
+        ...data,
         auditEvents: { create: { action: "license.updated", adminId } }
       }
     });
@@ -219,7 +250,7 @@ function externalInput(body) {
       "apiVersion 1 ist erforderlich"
     );
   const productId = text(body.productId, "productId", { max: 100 });
-  if (productId !== PRODUCT_ID)
+  if (!PRODUCT_IDS.includes(productId))
     throw new HttpError(404, "PRODUCT_NOT_FOUND", "Produkt nicht gefunden");
   const installation = body.installation;
   if (!installation || typeof installation !== "object")
@@ -241,31 +272,28 @@ function externalInput(body) {
   };
 }
 
-const externalLicense = (license) => {
+const externalLicense = (license, productId) => {
   const result = publicLicense(license);
+  const allowedFeatures = new Set(PRODUCT_FEATURES[productId]);
   return {
     licenseId: result.licenseId,
     tenantId: result.tenantId,
     companyName: result.companyName,
     status: result.status,
     plan: result.plan,
-    features: result.features,
+    features: result.features.filter(feature => allowedFeatures.has(feature)),
     maxUsers: result.maxUsers,
     validUntil: result.validUntil
   };
 };
 
-export async function validateExternalLicense(body, apiClientId) {
+export async function validateExternalLicense(body, apiClient) {
   const input = externalInput(body);
+  assertClientProduct(apiClient, input.productId);
   const license = await prisma.license.findUnique({
-    where: {
-      productId_tenantId: {
-        productId: input.productId,
-        tenantId: input.tenantId
-      }
-    }
+    where: { tenantId: input.tenantId }
   });
-  if (!license)
+  if (!license || !license.products.includes(input.productId))
     throw new HttpError(
       404,
       "LICENSE_NOT_FOUND",
@@ -276,19 +304,20 @@ export async function validateExternalLicense(body, apiClientId) {
     where: { id: license.id },
     data: {
       lastValidatedAt: new Date(),
-      auditEvents: { create: { action: "license.validated", apiClientId } }
+      auditEvents: { create: { action: "license.validated", apiClientId: apiClient.id } }
     }
   });
-  return externalLicense(updated);
+  return externalLicense(updated, input.productId);
 }
 
-export async function activateExternalLicense(body, apiClientId) {
+export async function activateExternalLicense(body, apiClient) {
   const input = externalInput(body);
+  assertClientProduct(apiClient, input.productId);
   const licenseKey = text(body.licenseKey, "licenseKey", { max: 16_384 });
   const license = await prisma.license.findUnique({
     where: { activationKeyHash: hashToken(licenseKey) }
   });
-  if (!license || license.productId !== input.productId) {
+  if (!license || !license.products.includes(input.productId)) {
     throw new HttpError(
       422,
       "LICENSE_KEY_INVALID",
@@ -324,11 +353,21 @@ export async function activateExternalLicense(body, apiClientId) {
       auditEvents: {
         create: {
           action: "license.activated",
-          apiClientId,
+          apiClientId: apiClient.id,
           details: { tenantId: input.tenantId }
         }
       }
     }
   });
-  return externalLicense(updated);
+  return externalLicense(updated, input.productId);
+}
+
+function assertClientProduct(apiClient, requestedProductId) {
+  if (!apiClient.products.includes(requestedProductId)) {
+    throw new HttpError(
+      403,
+      "API_CLIENT_PRODUCT_FORBIDDEN",
+      "API-Client ist für dieses Produkt nicht freigeschaltet"
+    );
+  }
 }

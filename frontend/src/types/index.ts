@@ -9,7 +9,7 @@ export type LicenseStatus = 'active' | 'inactive' | 'suspended' | 'revoked' | 'e
 export type License = {
   id: string
   licenseId: string
-  productId: string
+  products: string[]
   tenantId: string | null
   companyName: string
   tenantSlug: string | null
@@ -25,6 +25,7 @@ export type License = {
 }
 
 export type LicenseInput = {
+  products: Array<'carpenters-production' | 'moebel-design-suite'>
   companyName: string
   tenantId: string
   tenantSlug: string

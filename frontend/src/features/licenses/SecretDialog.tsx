@@ -17,7 +17,7 @@ export default function SecretDialog({ secret, onClose }: { secret: string; onCl
           <button onClick={onClose} aria-label="Schließen" className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X size={20} /></button>
         </div>
         <h2 className="mt-6 text-2xl font-semibold tracking-tight text-ink-950">Aktivierungsschlüssel sichern</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Dieser Schlüssel wird nur jetzt vollständig angezeigt. Speichere ihn sicher oder übertrage ihn direkt in CarpentersProduction.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-500">Dieser Schlüssel wird nur jetzt vollständig angezeigt. Speichere ihn sicher oder übertrage ihn direkt in die ausgewählten Produktanwendungen.</p>
         <div className="mt-6 break-all rounded-2xl border border-slate-200 bg-slate-50 p-4 font-mono text-sm text-slate-700">{secret}</div>
         <div className="mt-6 flex justify-end gap-3">
           <Button variant="secondary" onClick={() => void copy()}>{copied ? <Check size={17} /> : <Copy size={17} />}{copied ? 'Kopiert' : 'Kopieren'}</Button>

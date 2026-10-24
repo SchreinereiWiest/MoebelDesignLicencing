@@ -40,7 +40,7 @@ export default function LoginPage() {
             Lizenzen im Griff.<br /><span className="text-copper-300">Zugänge geschützt.</span>
           </h1>
           <p className="mt-7 max-w-lg text-lg leading-8 text-slate-400">
-            Zentrale Verwaltung aller CarpentersProduction-Installationen, Module und Laufzeiten an einem Ort.
+            Zentrale Verwaltung aller Produktfreigaben, Module und Laufzeiten an einem Ort.
           </p>
           <div className="mt-12 grid grid-cols-2 gap-4">
             <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">

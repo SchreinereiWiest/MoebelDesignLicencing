@@ -1,33 +1,22 @@
 services:
-  traefik:
-    image: traefik:v3.0
-    restart: unless-stopped
-    command:
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      - --entrypoints.web.address=:80
-    ports:
-      - "${HTTP_PORT:-8088}:80"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - default
-
   frontend:
     build:
       context: ./frontend
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - "traefik.http.routers.licensing-web.rule=Host(`${LICENSING_HOST:-licensing.localhost}`)"
+      - traefik.docker.network=carpenters-proxy
+      - "traefik.http.routers.licensing-web.rule=Host(`${LICENSING_HOST:-licence.localhost}`)"
       - traefik.http.routers.licensing-web.entrypoints=web
       - traefik.http.routers.licensing-web.priority=10
+      - traefik.http.routers.licensing-web.service=licensing-web
       - traefik.http.services.licensing-web.loadbalancer.server.port=80
     depends_on:
       backend:
         condition: service_healthy
     networks:
       - default
+      - carpenters-proxy
 
   backend:
     build:
@@ -42,14 +31,17 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD muss gesetzt sein}
       CARPENTERS_API_KEY: ${CARPENTERS_API_KEY:?CARPENTERS_API_KEY muss gesetzt sein}
       CARPENTERS_CLIENT_NAME: ${CARPENTERS_CLIENT_NAME:-CarpentersProduction}
+      DESIGN_SUITE_API_KEY: ${DESIGN_SUITE_API_KEY:?DESIGN_SUITE_API_KEY muss gesetzt sein}
+      DESIGN_SUITE_CLIENT_NAME: ${DESIGN_SUITE_CLIENT_NAME:-MoebelDesignSuite}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://licensing.localhost:8088}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://licence.localhost}
     labels:
       - traefik.enable=true
-      - traefik.docker.network=moebel-design-licensing-default
-      - "traefik.http.routers.licensing-api.rule=Host(`${LICENSING_HOST:-licensing.localhost}`) && PathPrefix(`/api`)"
+      - traefik.docker.network=carpenters-proxy
+      - "traefik.http.routers.licensing-api.rule=Host(`${LICENSING_HOST:-licence.localhost}`) && PathPrefix(`/api`)"
       - traefik.http.routers.licensing-api.entrypoints=web
       - traefik.http.routers.licensing-api.priority=100
+      - traefik.http.routers.licensing-api.service=licensing-api
       - traefik.http.services.licensing-api.loadbalancer.server.port=5100
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
@@ -65,6 +57,7 @@ services:
       MoebelDesign:
         aliases:
           - licensing-api
+      carpenters-proxy: {}
 
   postgres:
     image: postgres:16
@@ -89,6 +82,9 @@ volumes:
 networks:
   default:
     name: moebel-design-licensing-default
+  carpenters-proxy:
+    name: carpenters-proxy
+    external: true
   MoebelDesign:
     name: MoebelDesign
     external: true

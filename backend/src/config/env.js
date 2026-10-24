@@ -14,13 +14,16 @@ export function loadEnvironment() {
   const production = process.env.NODE_ENV === "production";
   const adminPassword = required("ADMIN_PASSWORD");
   const clientKey = required("CARPENTERS_API_KEY");
+  const designSuiteClientKey = required("DESIGN_SUITE_API_KEY");
   if (production && (
     adminPassword.length < 16
     || clientKey.length < 32
+    || designSuiteClientKey.length < 32
     || adminPassword.startsWith("CHANGE_ME")
     || clientKey.startsWith("CHANGE_ME")
+    || designSuiteClientKey.startsWith("CHANGE_ME")
   )) {
-    throw new Error("Produktive Zugangsdaten müssen ersetzt werden; ADMIN_PASSWORD benötigt mindestens 16 und CARPENTERS_API_KEY mindestens 32 Zeichen");
+    throw new Error("Produktive Zugangsdaten müssen ersetzt werden; ADMIN_PASSWORD benötigt mindestens 16 und beide API-Keys mindestens 32 Zeichen");
   }
 
   return {
@@ -31,6 +34,8 @@ export function loadEnvironment() {
     adminPassword,
     clientName: process.env.CARPENTERS_CLIENT_NAME?.trim() || "CarpentersProduction",
     clientKey,
+    designSuiteClientName: process.env.DESIGN_SUITE_CLIENT_NAME?.trim() || "MoebelDesignSuite",
+    designSuiteClientKey,
     sessionHours: integer("SESSION_TTL_HOURS", 12),
     allowedOrigins: new Set((process.env.ALLOWED_ORIGINS || "http://licensing.localhost").split(",").map(value => value.trim()).filter(Boolean))
   };

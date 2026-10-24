@@ -1,6 +1,7 @@
 import type { License, LicenseInput } from '../../types'
 
 export const licenseToInput = (license: License): LicenseInput => ({
+  products: license.products as LicenseInput['products'],
   companyName: license.companyName,
   tenantId: license.tenantId || '',
   tenantSlug: license.tenantSlug || '',

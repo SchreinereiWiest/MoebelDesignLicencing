@@ -115,7 +115,7 @@ export default function LicenseDashboard() {
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-copper-500">Dashboard</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-ink-950 sm:text-4xl">Lizenzübersicht</h1>
-            <p className="mt-2 text-sm text-slate-500">Verwalte Installationen, Laufzeiten und Modulfreigaben.</p>
+            <p className="mt-2 text-sm text-slate-500">Eine Lizenz je Unternehmen – für Carpenters Production, die Wiest Design Suite oder beide Produkte.</p>
           </div>
           <Button onClick={openCreate}><Plus size={18} /> Neue Lizenz</Button>
         </div>
@@ -173,6 +173,7 @@ export default function LicenseDashboard() {
                   <tr key={license.id} className="transition hover:bg-slate-50/70">
                     <td className="px-5 py-4">
                       <div className="font-semibold text-slate-800">{license.companyName}</div>
+                      <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-copper-500">{productLabel(license.products)}</div>
                       <div className="mt-1 max-w-64 truncate font-mono text-[11px] text-slate-400">{license.tenantId || 'Noch nicht gebunden'}</div>
                     </td>
                     <td className="px-5 py-4">
@@ -227,4 +228,10 @@ function Action({ label, danger = false, onClick, children }: { label: string; d
       {children}
     </button>
   )
+}
+
+function productLabel(products: string[]) {
+  if (products.length === 2) return 'Carpenters + Design Suite'
+  if (products.includes('moebel-design-suite')) return 'Design Suite'
+  return 'Carpenters Production'
 }

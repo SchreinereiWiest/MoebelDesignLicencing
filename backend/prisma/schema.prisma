@@ -48,6 +48,7 @@ model ApiClient {
   tokenPrefix String       @unique @map("token_prefix")
   tokenHash   String       @unique @map("token_hash")
   isActive    Boolean      @default(true) @map("is_active")
+  products    String[]     @default([])
   lastUsedAt  DateTime?    @map("last_used_at")
   auditEvents AuditEvent[]
   createdAt   DateTime     @default(now()) @map("created_at")
@@ -59,8 +60,8 @@ model ApiClient {
 model License {
   id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   licenseId         String        @unique @map("license_id")
-  productId         String        @map("product_id")
-  tenantId          String?       @map("tenant_id")
+  products          String[]      @default([])
+  tenantId          String?       @unique @map("tenant_id")
   companyName       String        @map("company_name")
   tenantSlug        String?       @map("tenant_slug")
   plan              String
@@ -75,7 +76,6 @@ model License {
   createdAt         DateTime      @default(now()) @map("created_at")
   updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  @@unique([productId, tenantId])
   @@index([companyName])
   @@index([status])
   @@index([validUntil])
