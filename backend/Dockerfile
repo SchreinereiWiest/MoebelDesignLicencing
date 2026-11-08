@@ -6,11 +6,16 @@ RUN npm ci
 
 COPY prisma.config.ts ./
 COPY prisma ./prisma
-COPY src/config/load-env.js ./src/config/load-env.js
+COPY --chown=node:node src/config/load-env.js ./src/config/load-env.js
 RUN npm run prisma:generate
 
-COPY src ./src
-ENV NODE_ENV=production
+COPY --chown=node:node src ./src
+ENV NODE_ENV=production \
+    HOME=/tmp \
+    TMPDIR=/tmp
+
+USER node
+
 EXPOSE 5100
 
-CMD ["sh", "-c", "npm run prisma:deploy && npm start"]
+CMD ["node", "src/server.js"]

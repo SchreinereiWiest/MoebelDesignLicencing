@@ -1,5 +1,5 @@
 services:
-  frontend:
+  licensing-frontend:
     build:
       context: ./frontend
     restart: unless-stopped
@@ -10,17 +10,18 @@ services:
       - traefik.http.routers.licensing-web.entrypoints=web
       - traefik.http.routers.licensing-web.priority=10
       - traefik.http.routers.licensing-web.service=licensing-web
-      - traefik.http.services.licensing-web.loadbalancer.server.port=80
+      - traefik.http.services.licensing-web.loadbalancer.server.port=8080
     depends_on:
-      backend:
+      licensing-backend:
         condition: service_healthy
     networks:
-      - default
-      - carpenters-proxy
+      - licensing-network
+      - licensing-proxy
 
-  backend:
+  licensing-backend:
     build:
       context: ./backend
+    command: ["sh", "-ec", "node ./node_modules/prisma/build/index.js migrate deploy && exec node src/server.js"]
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -50,16 +51,16 @@ services:
       retries: 10
       start_period: 15s
     depends_on:
-      postgres:
+      licensing-postgres-db:
         condition: service_healthy
     networks:
-      default: {}
-      MoebelDesign:
+      licensing-network: {}
+      licensing-moebel-design:
         aliases:
           - licensing-api
-      carpenters-proxy: {}
+      licensing-proxy: {}
 
-  postgres:
+  licensing-postgres-db:
     image: postgres:16
     restart: unless-stopped
     environment:
@@ -74,17 +75,20 @@ services:
       timeout: 5s
       retries: 15
     networks:
-      - default
+      licensing-network:
+        aliases:
+          - postgres
 
 volumes:
   licensing-postgres:
+    name: moebeldesignlicencing_licensing-postgres
 
 networks:
-  default:
+  licensing-network:
     name: moebel-design-licensing-default
-  carpenters-proxy:
+  licensing-proxy:
     name: carpenters-proxy
     external: true
-  MoebelDesign:
+  licensing-moebel-design:
     name: MoebelDesign
     external: true
